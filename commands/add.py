@@ -2,13 +2,15 @@ import click
 import time
 from core.storage import load_jobs, save_jobs
 from core.queue_manager import get_queue
+import json, uuid, redis
 
+r = redis.Redis(host="localhost", port=6379, decode_responses=True)
 @click.command()
 @click.argument("command")
 def add(command):
     """Add a job to the queue."""
     jobs = load_jobs()
-    job_id = len(jobs) + 1
+    job_id = str(uuid.uuid4())
     job = {
         "id": job_id,
         "command": command,
