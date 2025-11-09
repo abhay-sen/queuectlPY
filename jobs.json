@@ -1,8 +1,8 @@
 [
     {
         "id": 1,
-        "command": "python3 script.py",
-        "status": "queued",
+        "command": "echo abhay sen",
+        "status": "completed",
         "timestamp": "2025-11-09 00:08:41"
     },
     {
@@ -10,5 +10,29 @@
         "command": "echo hello world",
         "status": "completed",
         "timestamp": "2025-11-09 00:08:55"
+    },
+    {
+        "id": 3,
+        "command": "sleep 4",
+        "status": "completed",
+        "timestamp": "2025-11-09 14:05:50"
+    },
+    {
+        "id": 4,
+        "command": "sleep 6",
+        "status": "completed",
+        "timestamp": "2025-11-09 14:06:05"
+    },
+    {
+        "id": 5,
+        "command": "echo after 4 seconds",
+        "status": "completed",
+        "timestamp": "2025-11-09 14:06:29"
+    },
+    {
+        "id": 6,
+        "command": "echo after 4 seconds",
+        "status": "completed",
+        "timestamp": "2025-11-09 14:42:48"
     }
 ]
