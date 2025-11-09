@@ -20,26 +20,27 @@ class CLIGroup(click.Group):
         try:
             mod_path = f"queuectl.commands.{cmd_name}"
             mod = importlib.import_module(mod_path)
-            
-            # ✅ Prefer click.Group instances (e.g., worker)
+
+            # ✅ Try to get a Click Group or Command named exactly as the file
+            cmd_obj = getattr(mod, cmd_name, None)
+            if isinstance(cmd_obj, (click.Group, click.Command)):
+                return cmd_obj
+
+            # ✅ Fallback: first Click object found
             for attr in dir(mod):
                 obj = getattr(mod, attr)
-                if isinstance(obj, click.Group):
+                if isinstance(obj, (click.Group, click.Command)):
                     return obj
 
-            # Fallback: any click.Command
-            for attr in dir(mod):
-                obj = getattr(mod, attr)
-                if isinstance(obj, click.Command):
-                    return obj
-
+            click.echo(f"⚠️ No valid click command found in {mod_path}")
             return None
+
         except ImportError as e:
             click.echo(f"⚠️ Error loading command '{cmd_name}': {e}")
             return None
 
 
-@click.command(cls=CLIGroup)
+@click.group(cls=CLIGroup)
 def cli():
     """QueueCTL — Background Job Queue CLI."""
     pass

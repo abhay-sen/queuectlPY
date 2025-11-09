@@ -11,11 +11,17 @@ class RedisStorage:
     # -----------------------------
     # Job Enqueue
     # -----------------------------
-    def enqueue_job(self, data, max_retries=3, backoff_base=2, backoff_factor=2):
+    def enqueue_job(self, data, max_retries=None, backoff_base=None, backoff_factor=None):
+    # Load global config if not passed explicitly
+        config = self.r.hgetall("queuectl:config")
+
+        max_retries = max_retries or int(config.get("max_retries", 3))
+        backoff_base = backoff_base or int(config.get("backoff_base", 2))
+        backoff_factor = backoff_factor or int(config.get("backoff_factor", 2))
+
         job_id = str(uuid.uuid4())
         job_key = f"queuectl:job:{job_id}"
 
-        # Store job metadata
         self.r.hset(job_key, mapping={
             "date_added": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
             "status": "pending",
@@ -26,9 +32,9 @@ class RedisStorage:
             "data": json.dumps(data)
         })
 
-        # Push to main queue (FIFO)
         self.r.lpush("queuectl:jobs", job_id)
         return job_id
+
 
     # -----------------------------
     # Job Fetch / Complete / Fail
