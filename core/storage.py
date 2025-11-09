@@ -1,38 +1,63 @@
+# core/storage.py
+import redis
 import json
-import os
-import threading
+import uuid
 
-JOBS_FILE = "jobs.json"
-# The lock is now part of the storage module to protect all file access
-lock = threading.Lock()
+class RedisStorage:
+    def __init__(self, host="localhost", port=6379, db=0):
+        self.r = redis.Redis(host=host, port=port, db=db, decode_responses=True)
 
-def load_jobs():
-    """Safely loads the job list from the JSON file."""
-    with lock:
-        if not os.path.exists(JOBS_FILE):
-            return []
-        try:
-            with open(JOBS_FILE, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            # Handle case where file is empty or corrupt
-            return []
+    def add_job(self, data):
+        job_id = str(uuid.uuid4())
+        job_key = f"queuectl:job:{job_id}"
 
-def save_jobs(jobs):
-    """Safely saves the job list to the JSON file."""
-    with lock:
-        with open(JOBS_FILE, "w") as f:
-            json.dump(jobs, f, indent=4)
+        # Store job metadata
+        self.r.hset(job_key, mapping={
+            "status": "pending",
+            "data": json.dumps(data)
+        })
 
-def update_job_status(job_id, status):
-    """Finds a single job by ID and updates its status."""
-    jobs = load_jobs()
-    job_found = False
-    for job in jobs:
-        if job["id"] == job_id:
-            job["status"] = status
-            job_found = True
-            break
-    
-    if job_found:
-        save_jobs(jobs)
+        # Add to active queue (FIFO)
+        self.r.lpush("queuectl:jobs", job_id)
+        return job_id
+
+    def get_next_job(self):
+        # Block until a job is available
+        item = self.r.brpop("queuectl:jobs")
+        if item is None:
+            return None, None
+        _, job_id = item
+        job_key = f"queuectl:job:{job_id}"
+
+        self.r.hset(job_key, "status", "processing")
+        data = json.loads(self.r.hget(job_key, "data"))
+        return job_id, data
+
+    def mark_completed(self, job_id, result):
+        job_key = f"queuectl:job:{job_id}"
+        self.r.hset(job_key, mapping={
+            "status": "completed",
+            "result": json.dumps(result)
+        })
+
+    def move_to_dlq(self, job_id, reason):
+        job_key = f"queuectl:job:{job_id}"
+        self.r.hset(job_key, mapping={
+            "status": "failed",
+            "reason": reason
+        })
+        self.r.lpush("queuectl:dead_letter", job_id)
+
+    def list_jobs(self):
+        keys = self.r.keys("queuectl:job:*")
+        jobs = []
+        for k in keys:
+            jobs.append(self.r.hgetall(k))
+        return jobs
+
+    def list_dlq(self):
+        ids = self.r.lrange("queuectl:dead_letter", 0, -1)
+        jobs = []
+        for job_id in ids:
+            jobs.append(self.r.hgetall(f"queuectl:job:{job_id}"))
+        return jobs

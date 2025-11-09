@@ -1,25 +1,22 @@
+# commands/list.py
 import click
-from core.storage import load_jobs
+from core.queue_manager import list_all_jobs, list_dlq_jobs
 
 @click.command()
-def list():
-    """List all jobs."""
-    jobs = load_jobs()
-    if not jobs:
-        click.echo("No jobs yet.")
-        return
-
-    click.echo("\nJOB QUEUE STATUS:\n----------------------")
-    for job in jobs:
-        # Simple formatting
-        status_color = "green"
-        if job['status'] == 'queued':
-            status_color = 'yellow'
-        elif job['status'] in ['failed', 'error']:
-            status_color = 'red'
-            
-        click.echo(
-            f"[{job['id']}] " +
-            click.style(f"({job['status']})", fg=status_color) +
-            f" - {job['command']}"
-        )
+@click.option("--dlq", is_flag=True, help="List jobs in the Dead Letter Queue.")
+def list(dlq):
+    """
+    List jobs in the queue.
+    
+    By default, lists all known jobs (pending, processing, completed).
+    Use --dlq to see only jobs in the Dead Letter Queue.
+    """
+    try:
+        if dlq:
+            click.echo("Inspecting Dead Letter Queue (DLQ)...")
+            list_dlq_jobs()
+        else:
+            click.echo("Inspecting all jobs...")
+            list_all_jobs()
+    except Exception as e:
+        click.echo(f"Error connecting to Redis: {e}", err=True)

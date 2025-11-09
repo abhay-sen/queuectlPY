@@ -1,26 +1,39 @@
+# commands/add.py
 import click
-import time
-from core.storage import load_jobs, save_jobs
-from core.queue_manager import get_queue
-import json, uuid, redis
+from core.queue_manager import add_job
 
-r = redis.Redis(host="localhost", port=6379, decode_responses=True)
 @click.command()
-@click.argument("command")
-def add(command):
-    """Add a job to the queue."""
-    jobs = load_jobs()
-    job_id = str(uuid.uuid4())
-    job = {
-        "id": job_id,
-        "command": command,
-        "status": "queued",
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    }
-    jobs.append(job)
-    save_jobs(jobs)
+@click.argument("data", nargs=-1)
+def add(data):
+    """
+    Add a new job to the queue.
     
-    # Also add to the live in-memory queue in case workers are already running
-    get_queue().put(job)
+    Provide data as space-separated key=value pairs.
     
-    click.echo(f"✅ Job {job_id} added: {command}")
+    Example:
+    
+    queuectl add command=send_report user_id=42 type=monthly
+    
+    queuectl add command=fail_this_job
+    """
+    if not data:
+        click.echo("Error: No job data provided.", err=True)
+        click.echo("Usage: queuectl add key1=value1 key2=value2 ...")
+        return
+
+    job_data = {}
+    try:
+        for item in data:
+            # Split only on the first '='
+            key, value = item.split("=", 1)
+            job_data[key] = value
+    except ValueError:
+        click.echo("Error: Data must be in key=value format.", err=True)
+        return
+    
+    # The add_job function from queue_manager already prints
+    # a success message, so we just call it.
+    try:
+        add_job(job_data)
+    except Exception as e:
+        click.echo(f"Error connecting to Redis: {e}", err=True)
