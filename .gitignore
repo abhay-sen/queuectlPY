@@ -1,5 +1,5 @@
 /__pycache__
 /venv
-queuectl/commands/__pycache__
-queuectl/core/__pycache__
-queuectl/__pycache__
+/queuectl/commands/__pycache__
+/queuectl/core/__pycache__
+/queuectl/__pycache__
