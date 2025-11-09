@@ -38,8 +38,8 @@
 
 # @cli.command()
 # @click.argument("command")
-# def add(command):
-#     """Add a job to the queue."""
+# def enqueue(command):
+#     """enqueue a job to the queue."""
 #     jobs = load_jobs()
 #     job_id = len(jobs) + 1
 #     job = {

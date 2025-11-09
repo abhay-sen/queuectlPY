@@ -15,8 +15,8 @@ def clear_stop_signal():
     """Deactivate the stop signal before starting workers."""
     storage.r.delete("queuectl:stop_signal")
     
-def add_job(data):
-    job_id = storage.add_job(data)
+def enqueue_job(data):
+    job_id = storage.enqueue_job(data)
     print(f"✅ Job added: {job_id}")
     return job_id
 

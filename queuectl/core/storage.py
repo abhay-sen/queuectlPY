@@ -8,7 +8,7 @@ class RedisStorage:
     def __init__(self, host="localhost", port=6379, db=0):
         self.r = redis.Redis(host=host, port=port, db=db, decode_responses=True)
 
-    def add_job(self, data):
+    def enqueue_job(self, data):
         job_id = str(uuid.uuid4())
         job_key = f"queuectl:job:{job_id}"
 
