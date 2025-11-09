@@ -99,42 +99,34 @@ class CLIGroup(click.Group):
     A custom click.Group that dynamically loads commands
     from .py files in the 'commands' directory.
     """
-    
     def list_commands(self, ctx):
-        """Finds all valid .py files in the commands folder."""
         rv = []
         for filename in os.listdir(CMD_FOLDER):
-            # Find .py files, ignore __init__.py
             if filename.endswith(".py") and filename != "__init__.py":
-                # Add the filename without the .py extension
                 rv.append(filename[:-3])
         rv.sort()
         return rv
 
     def get_command(self, ctx, cmd_name):
-        """Imports and retrieves the click.Command from a module."""
         try:
-            # Dynamically import the module (e.g., 'commands.add')
-            mod_path = f"commands.{cmd_name}"
+            # Adjusted for package import
+            mod_path = f"queuectl.commands.{cmd_name}"
             mod = importlib.import_module(mod_path)
-            
-            # Look for an attribute in the module that is a click.Command.
-            # This is more robust than assuming cmd_name matches the function name.
             for attr in dir(mod):
                 obj = getattr(mod, attr)
                 if isinstance(obj, click.Command):
                     return obj
-            return None # No command found
-            
+            return None
         except ImportError as e:
-            print(f"Error loading command '{cmd_name}': {e}")
-            return
+            click.echo(f"⚠️ Error loading command '{cmd_name}': {e}")
+            return None
 
 
 @click.command(cls=CLIGroup)
 def cli():
-    """A simple CLI job queue system."""
+    """QueueCTL — Background Job Queue CLI."""
     pass
+
 
 if __name__ == "__main__":
     cli()

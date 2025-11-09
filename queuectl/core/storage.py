@@ -2,6 +2,7 @@
 import redis
 import json
 import uuid
+import time
 
 class RedisStorage:
     def __init__(self, host="localhost", port=6379, db=0):
@@ -13,6 +14,7 @@ class RedisStorage:
 
         # Store job metadata
         self.r.hset(job_key, mapping={
+            "date_added": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
             "status": "pending",
             "data": json.dumps(data)
         })

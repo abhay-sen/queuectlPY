@@ -1,8 +1,20 @@
 import subprocess
-from core.storage import RedisStorage
+from queuectl.core.storage import RedisStorage
 
 storage = RedisStorage()
 
+def should_stop():
+    """Check if stop signal is active."""
+    return storage.r.get("queuectl:stop_signal") == "true"
+
+def set_stop_signal():
+    """Activate the stop signal for all workers."""
+    storage.r.set("queuectl:stop_signal", "true")
+
+def clear_stop_signal():
+    """Deactivate the stop signal before starting workers."""
+    storage.r.delete("queuectl:stop_signal")
+    
 def add_job(data):
     job_id = storage.add_job(data)
     print(f"✅ Job added: {job_id}")
@@ -12,7 +24,7 @@ def add_job(data):
 def list_all_jobs():
     jobs = storage.list_jobs()
     for j in jobs:
-        print(f"[{j.get('status', '?')}] {j.get('data', '{}')}")
+        print(f"[{j.get('status', '?')}][{j.get('date_added','?')}] {j.get('data', '{}')}")
     print(f"Total: {len(jobs)} jobs")
 
 
