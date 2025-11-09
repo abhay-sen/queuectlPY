@@ -34,7 +34,6 @@ def list_dlq_jobs():
         print(f"[DLQ] {j.get('data', '{}')} → reason: {j.get('reason')}")
     print(f"Total DLQ: {len(jobs)} jobs")
 
-
 def process_next_job(worker_name="Worker"):
     job_id, data = storage.get_next_job()
     if not job_id:
@@ -48,7 +47,7 @@ def process_next_job(worker_name="Worker"):
         if not command:
             raise ValueError("No command found in job data")
 
-        # ✅ Actually execute the command (shell command)
+        # Execute the shell command
         result = subprocess.run(
             command,
             shell=True,
@@ -66,5 +65,6 @@ def process_next_job(worker_name="Worker"):
             raise Exception(error_msg)
 
     except Exception as e:
-        storage.move_to_dlq(job_id, str(e))
-        print(f"❌ Job {job_id} failed → moved to DLQ\nReason: {e}")
+        # 🔄 Instead of immediately moving to DLQ,
+        # use mark_failed() to handle retries with exponential backoff
+        storage.mark_failed(job_id, str(e))

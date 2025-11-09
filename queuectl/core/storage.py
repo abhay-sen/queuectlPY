@@ -8,7 +8,10 @@ class RedisStorage:
     def __init__(self, host="localhost", port=6379, db=0):
         self.r = redis.Redis(host=host, port=port, db=db, decode_responses=True)
 
-    def enqueue_job(self, data):
+    # -----------------------------
+    # Job Enqueue
+    # -----------------------------
+    def enqueue_job(self, data, max_retries=3, backoff_base=2, backoff_factor=2):
         job_id = str(uuid.uuid4())
         job_key = f"queuectl:job:{job_id}"
 
@@ -16,15 +19,22 @@ class RedisStorage:
         self.r.hset(job_key, mapping={
             "date_added": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
             "status": "pending",
+            "attempts": 0,
+            "max_retries": max_retries,
+            "backoff_base": backoff_base,
+            "backoff_factor": backoff_factor,
             "data": json.dumps(data)
         })
 
-        # Add to active queue (FIFO)
+        # Push to main queue (FIFO)
         self.r.lpush("queuectl:jobs", job_id)
         return job_id
 
+    # -----------------------------
+    # Job Fetch / Complete / Fail
+    # -----------------------------
     def get_next_job(self):
-        # Block until a job is available
+        """Fetch next available job (FIFO)."""
         item = self.r.brpop("queuectl:jobs")
         if item is None:
             return None, None
@@ -39,17 +49,70 @@ class RedisStorage:
         job_key = f"queuectl:job:{job_id}"
         self.r.hset(job_key, mapping={
             "status": "completed",
-            "result": json.dumps(result)
+            "result": json.dumps(result),
+            "completed_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         })
 
+    # -----------------------------
+    # Retry Handling
+    # -----------------------------
+    def mark_failed(self, job_id, reason):
+        """Handle failed jobs: either retry or move to DLQ."""
+        job_key = f"queuectl:job:{job_id}"
+        attempts = int(self.r.hincrby(job_key, "attempts", 1))
+        max_retries = int(self.r.hget(job_key, "max_retries"))
+        base = int(self.r.hget(job_key, "backoff_base"))
+        factor = int(self.r.hget(job_key, "backoff_factor"))
+
+        if attempts > max_retries:
+            self.move_to_dlq(job_id, reason)
+            return
+
+        # Calculate exponential backoff delay
+        delay = base * (factor ** (attempts - 1))
+        retry_time = time.time() + delay
+
+        # Move to retry queue (sorted set with timestamp)
+        self.r.zadd("queuectl:retry", {job_id: retry_time})
+        self.r.hset(job_key, mapping={
+            "status": "failed",
+            "last_error": reason,
+            "next_retry_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(retry_time))
+        })
+        print(f"⏳ Job {job_id} failed (attempt {attempts}), retrying in {delay:.1f}s")
+
+    # -----------------------------
+    # DLQ
+    # -----------------------------
     def move_to_dlq(self, job_id, reason):
         job_key = f"queuectl:job:{job_id}"
         self.r.hset(job_key, mapping={
-            "status": "failed",
-            "reason": reason
+            "status": "dead",
+            "reason": reason,
+            "failed_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         })
         self.r.lpush("queuectl:dead_letter", job_id)
+        print(f"💀 Job {job_id} moved to DLQ: {reason}")
 
+    # -----------------------------
+    # Retry Processor
+    # -----------------------------
+    def process_retry_queue(self):
+        """Move ready-to-retry jobs back to main queue."""
+        now = time.time()
+        ready_jobs = self.r.zrangebyscore("queuectl:retry", 0, now)
+
+        for job_id in ready_jobs:
+            # Remove from retry set
+            self.r.zrem("queuectl:retry", job_id)
+            # Push back to active queue
+            self.r.lpush("queuectl:jobs", job_id)
+            self.r.hset(f"queuectl:job:{job_id}", "status", "pending")
+            print(f"♻️ Job {job_id} requeued from retry queue")
+
+    # -----------------------------
+    # Listing Functions
+    # -----------------------------
     def list_jobs(self):
         keys = self.r.keys("queuectl:job:*")
         jobs = []

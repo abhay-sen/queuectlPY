@@ -9,10 +9,9 @@ queuectl.egg-info/entry_points.txt
 queuectl.egg-info/requires.txt
 queuectl.egg-info/top_level.txt
 queuectl/commands/__init__.py
-queuectl/commands/add.py
+queuectl/commands/enqueue.py
 queuectl/commands/list.py
-queuectl/commands/start.py
-queuectl/commands/stop.py
+queuectl/commands/worker.py
 queuectl/core/__init__.py
 queuectl/core/queue_manager.py
 queuectl/core/storage.py
