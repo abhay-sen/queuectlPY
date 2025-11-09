@@ -1,22 +1,37 @@
-# commands/list.py
 import click
-from queuectl.core.queue_manager import list_all_jobs, list_dlq_jobs
+from queuectl.core.queue_manager import list_jobs  # <-- We'll rename this
 
 @click.command()
-@click.option("--dlq", is_flag=True, help="List jobs in the Dead Letter Queue.")
-def list(dlq):
+@click.option(
+    "--state",
+    type=click.Choice(
+        ['pending', 'processing', 'completed', 'failed', 'dead'], 
+        case_sensitive=False
+    ),
+    default=None,  # This will be None if the option is not used
+    help="Filter by job state. Lists all jobs if omitted."
+)
+def list(state):
     """
     List jobs in the queue.
     
-    By default, lists all known jobs (pending, processing, completed).
-    Use --dlq to see only jobs in the Dead Letter Queue.
+    By default, lists all known jobs.
+    Use --state to filter by a specific status:
+    - 'pending': Jobs waiting to be run.
+    - 'processing': Jobs currently being run.
+    - 'completed': Jobs that finished successfully.
+    - 'failed': Jobs in the retry queue.
+    - 'dead': Jobs in the Dead Letter Queue (DLQ).
     """
     try:
-        if dlq:
-            click.echo("Inspecting Dead Letter Queue (DLQ)...")
-            list_dlq_jobs()
+        if state:
+            click.echo(f"📋 Inspecting '{state}' jobs...")
         else:
-            click.echo("Inspecting all jobs...")
-            list_all_jobs()
+            click.echo("📋 Inspecting all jobs...")
+
+        # We pass the state filter (e.g., 'pending' or None) 
+        # to the backend function.
+        list_jobs(state_filter=state)
+
     except Exception as e:
         click.echo(f"Error connecting to Redis: {e}", err=True)

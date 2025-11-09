@@ -126,3 +126,42 @@ class RedisStorage:
         for job_id in ids:
             jobs.append(self.r.hgetall(f"queuectl:job:{job_id}"))
         return jobs
+    
+    def list_failed(self):
+        keys = self.r.keys("queuectl:job:*")
+        jobs = []
+        for k in keys:
+            job = self.r.hgetall(k)
+            if job.get("status") == "failed":
+                jobs.append(job)
+        return jobs
+    
+    def list_processing(self):
+        keys = self.r.keys("queuectl:job:*")
+        jobs = []
+        for k in keys:
+            job = self.r.hgetall(k)
+            if job.get("status") == "processing":
+                jobs.append(job)
+        return jobs
+    
+    def list_completed(self):
+        keys = self.r.keys("queuectl:job:*")
+        jobs = []
+        for k in keys:
+            job = self.r.hgetall(k)
+            if job.get("status") == "completed":
+                jobs.append(job)
+        return jobs
+    
+    def list_pending(self):
+        pending_jobs = []
+        job_keys = self.r.keys("queuectl:job:*")
+        for job_key in job_keys:
+            job = self.r.hgetall(job_key)
+            if job.get("status") == "pending":
+                job_id = job_key.split(":")[-1]
+                job["id"] = job_id  # add job ID for convenience
+                pending_jobs.append(job)
+        return pending_jobs
+

@@ -1,5 +1,6 @@
 import click
 import json
+from collections import Counter
 from queuectl.core.storage import RedisStorage
 from queuectl.core.queue_manager import get_active_workers
 
@@ -8,30 +9,28 @@ storage = RedisStorage()
 @click.command()
 def status():
     """
-    Show the current status of all jobs and active workers.
+    Show a summary of job statuses and active workers.
     """
     click.echo("📋 QueueCTL Status")
     click.echo("──────────────────────────────")
 
-    # === JOB STATUS ===
-    click.echo("\n🧱 Jobs:")
+    # === JOB STATUS SUMMARY ===
+    click.echo("\n🧱 Jobs Summary:")
     try:
         job_keys = storage.r.keys("queuectl:job:*")
         if not job_keys:
             click.echo("No jobs found.")
         else:
+            status_counts = Counter()
             for key in job_keys:
                 job = storage.r.hgetall(key)
-                job_id = key.split(":")[-1]
                 status = job.get("status", "unknown")
-                date_added = job.get("date_added", "-")
-                data = job.get("data", "{}")
-                try:
-                    data = json.loads(data)
-                except Exception:
-                    pass
-                command = data.get("command") if isinstance(data, dict) else str(data)
-                click.echo(f"[{job_id}] {command} - {status} ({date_added})")
+                status_counts[status] += 1
+
+            total_jobs = sum(status_counts.values())
+            for state, count in sorted(status_counts.items()):
+                click.echo(f"  {state}: {count}")
+            click.echo(f"  total: {total_jobs}")
 
     except Exception as e:
         click.echo(f"⚠️ Error fetching job status: {e}")
@@ -46,7 +45,6 @@ def status():
             for worker_name, info in active_workers.items():
                 status = info.get("status", "unknown")
                 current_job = info.get("current_job", "—")
-                click.echo(f"{worker_name} → {status} (job: {current_job})")
-
-    except Exception:
-        click.echo("Unable to retrieve worker status.")
+                click.echo(f"  {worker_name} → {status} (job: {current_job})")
+    except Exception as e:
+        click.echo(f"⚠️ Unable to retrieve worker status: {e}")
