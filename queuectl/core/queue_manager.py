@@ -34,10 +34,21 @@ def list_dlq_jobs():
         print(f"[DLQ] {j.get('data', '{}')} → reason: {j.get('reason')}")
     print(f"Total DLQ: {len(jobs)} jobs")
 
+def get_active_workers():
+    import redis
+    r = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    workers = {}
+    for key in r.keys("queuectl:worker:*"):
+        workers[key.split(":")[-1]] = r.hgetall(key)
+    return workers
+
+
 def process_next_job(worker_name="Worker"):
     job_id, data = storage.get_next_job()
     if not job_id:
-        print("No jobs available.")
+        # Note: This print will be very noisy in the worker loop.
+        # You might want to remove it and just 'return'.
+        print("No jobs available.") 
         return
 
     print(f"👷 {worker_name} picked job {job_id}: {data}")
@@ -46,6 +57,15 @@ def process_next_job(worker_name="Worker"):
         command = data.get("command")
         if not command:
             raise ValueError("No command found in job data")
+
+        # === FIX 1: SET WORKER STATUS TO 'BUSY' ===
+        # This is the line you are missing.
+        # Your 'status' command will now see this.
+        storage.r.hset(
+            f"queuectl:worker:{worker_name}",
+            "current_job",
+            f"Job-{job_id} ({command})"
+        )
 
         # Execute the shell command
         result = subprocess.run(
@@ -68,3 +88,14 @@ def process_next_job(worker_name="Worker"):
         # 🔄 Instead of immediately moving to DLQ,
         # use mark_failed() to handle retries with exponential backoff
         storage.mark_failed(job_id, str(e))
+
+    finally:
+        # === FIX 2: SET WORKER STATUS BACK TO 'IDLE' ===
+        # This is also missing.
+        # This block runs whether the job succeeded OR failed,
+        # ensuring the worker is ready for the next job.
+        storage.r.hset(
+            f"queuectl:worker:{worker_name}",
+            "current_job",
+            "idle"
+        )
