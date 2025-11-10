@@ -90,7 +90,7 @@ def list_jobs(state_filter=None):
     # --- Handle hash-based states (or all jobs) ---
     
     click.echo("Inspecting all job records...")
-    job_keys = storage.r.keys("queuectl:job:*")
+    job_keys = storage.r.keys("queuectl:jobs:*")
     
     if not job_keys:
         click.echo("No jobs found in database.")
@@ -190,7 +190,7 @@ def process_next_job(worker_name="Worker"):
             raise ValueError("No command found in job data")
 
         # Update status to 'processing'
-        storage.r.hset(f"queuectl:job:{job_id}", mapping={"status": "processing"})
+        storage.r.hset(f"queuectl:jobs:{job_id}", mapping={"status": "processing"})
         storage.r.hset(
             f"queuectl:worker:{worker_name}", "current_job", f"Job-{job_id} ({command})"
         )
@@ -228,6 +228,6 @@ def process_next_job(worker_name="Worker"):
 
     finally:
         storage.r.hset(f"queuectl:worker:{worker_name}", "current_job", "idle")
-        storage.r.hset(f"queuectl:job:{job_id}", "log_file", log_file_path)
+        storage.r.hset(f"queuectl:jobs:{job_id}", "log_file", log_file_path)
         log("🏁 Job finished.")
 

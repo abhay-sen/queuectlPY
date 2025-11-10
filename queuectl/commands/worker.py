@@ -18,7 +18,6 @@ def run_worker(worker_name):
     """
     worker_key = f"queuectl:worker:{worker_name}"
 
-    # 🧠 Register worker as active
     storage.r.hset(worker_key, mapping={
         "status": "active",
         "current_job": "idle"
@@ -46,7 +45,6 @@ def run_worker(worker_name):
             time.sleep(1)
 
     finally:
-        # 🧹 Clean up this worker record once it stops
         storage.r.delete(worker_key)
         click.echo(f"🧹 {worker_name} removed from worker registry.")
 
@@ -56,25 +54,26 @@ def worker():
     """Manage background worker(s)."""
     pass
 
-
 @worker.command()
 @click.option("--count", "-c", default=1, help="Number of concurrent workers.")
 def start(count):
     """
-    Start worker(s) to process jobs from the queue.
-    Use: queuectl worker stop
+    Start worker(s) to process jobs from the queue continuously
+    until a stop signal or keyboard interrupt is received.
     """
+    clear_stop_signal()
+
     click.echo(f"🚀 Starting {count} worker thread(s)...")
     click.echo("Press Ctrl+C to stop manually, or run 'queuectl worker stop' in another terminal.")
 
-    clear_stop_signal()
-
+    # Launch the specified number of worker threads
     for i in range(count):
         worker_name = f"Worker-{i+1}"
         t = threading.Thread(target=run_worker, args=(worker_name,), daemon=True)
         t.start()
 
     try:
+        # The main process continuously monitors retry queues
         while not should_stop():
             storage.process_retry_queue()
             time.sleep(2)
@@ -83,7 +82,6 @@ def start(count):
         click.echo("\n🛑 KeyboardInterrupt received, shutting down.")
 
     finally:
-        # When main thread exits, all workers should be cleaned up automatically
         click.echo("✅ All workers stopped and cleaned up.")
 
 
@@ -93,11 +91,15 @@ def stop():
     set_stop_signal()
     click.echo("🛑 Stop signal sent. Workers will exit after finishing current job.")
 
-    # Wait briefly for workers to shut down
-    time.sleep(2)
-
-    # 🧹 Clear all worker records from Redis
+    time.sleep(1)
     worker_keys = storage.r.keys("queuectl:worker:*")
     for key in worker_keys:
         storage.r.delete(key)
     click.echo(f"🧹 Cleared {len(worker_keys)} worker record(s) from Redis.")
+
+
+@worker.command()
+def resume():
+    """Resume worker processing after stop."""
+    clear_stop_signal()
+    click.echo("▶️ Workers resumed.")

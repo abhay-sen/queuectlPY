@@ -25,7 +25,7 @@ def list_dlq():
 
     count = 0
     for job_id in dlq_job_ids:
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
         job = storage.r.hgetall(job_key)
 
         if not job:
@@ -59,7 +59,7 @@ def list_dlq():
 @dlq.command("retry", help="Retry a specific DLQ job by ID")
 @click.argument("job_id")
 def retry_dlq(job_id):
-    job_key = f"queuectl:job:{job_id}"
+    job_key = f"queuectl:jobs:{job_id}"
     job = storage.r.hgetall(job_key)
 
     if not job:

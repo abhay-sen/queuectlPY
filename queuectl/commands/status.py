@@ -17,7 +17,7 @@ def status():
     # === JOB STATUS SUMMARY ===
     click.echo("\n🧱 Jobs Summary:")
     try:
-        job_keys = storage.r.keys("queuectl:job:*")
+        job_keys = storage.r.keys("queuectl:jobs:*")
         if not job_keys:
             click.echo("No jobs found.")
         else:

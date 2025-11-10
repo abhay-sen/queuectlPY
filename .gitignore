@@ -4,3 +4,4 @@
 /queuectl/core/__pycache__
 /queuectl/__pycache__
 /queuectl.egg-info
+/queuectl/logs/*

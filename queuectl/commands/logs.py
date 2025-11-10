@@ -17,7 +17,7 @@ def view_logs(job_id):
     log_path = os.path.join(LOG_DIR, f"{job_id}.log")
 
     # Check Redis if file path is stored (optional fallback)
-    redis_log_path = storage.r.hget(f"queuectl:job:{job_id}", "log_file")
+    redis_log_path = storage.r.hget(f"queuectl:jobs:{job_id}", "log_file")
     if redis_log_path and os.path.exists(redis_log_path):
         log_path = redis_log_path
 

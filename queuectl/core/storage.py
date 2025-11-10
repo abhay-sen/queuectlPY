@@ -20,7 +20,7 @@ class RedisStorage:
         backoff_factor = backoff_factor or int(config.get("backoff_factor", 2))
 
         job_id = str(uuid.uuid4())
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
 
         self.r.hset(job_key, mapping={
             "date_added": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
@@ -45,14 +45,14 @@ class RedisStorage:
         if item is None:
             return None, None
         _, job_id = item
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
 
         self.r.hset(job_key, "status", "processing")
         data = json.loads(self.r.hget(job_key, "data"))
         return job_id, data
 
     def mark_completed(self, job_id, result):
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
         self.r.hset(job_key, mapping={
             "status": "completed",
             "result": json.dumps(result),
@@ -64,7 +64,7 @@ class RedisStorage:
     # -----------------------------
     def mark_failed(self, job_id, reason):
         """Handle failed jobs: either retry or move to DLQ."""
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
         attempts = int(self.r.hincrby(job_key, "attempts", 1))
         max_retries = int(self.r.hget(job_key, "max_retries"))
         base = int(self.r.hget(job_key, "backoff_base"))
@@ -91,7 +91,7 @@ class RedisStorage:
     # DLQ
     # -----------------------------
     def move_to_dlq(self, job_id, reason):
-        job_key = f"queuectl:job:{job_id}"
+        job_key = f"queuectl:jobs:{job_id}"
         self.r.hset(job_key, mapping={
             "status": "dead",
             "reason": reason,
@@ -113,14 +113,14 @@ class RedisStorage:
             self.r.zrem("queuectl:retry", job_id)
             # Push back to active queue
             self.r.lpush("queuectl:jobs", job_id)
-            self.r.hset(f"queuectl:job:{job_id}", "status", "pending")
+            self.r.hset(f"queuectl:jobs:{job_id}", "status", "pending")
             print(f"♻️ Job {job_id} requeued from retry queue")
 
     # -----------------------------
     # Listing Functions
     # -----------------------------
     def list_jobs(self):
-        keys = self.r.keys("queuectl:job:*")
+        keys = self.r.keys("queuectl:jobs:*")
         jobs = []
         for k in keys:
             jobs.append(self.r.hgetall(k))
@@ -130,11 +130,11 @@ class RedisStorage:
         ids = self.r.lrange("queuectl:dead_letter", 0, -1)
         jobs = []
         for job_id in ids:
-            jobs.append(self.r.hgetall(f"queuectl:job:{job_id}"))
+            jobs.append(self.r.hgetall(f"queuectl:jobs:{job_id}"))
         return jobs
     
     def list_failed(self):
-        keys = self.r.keys("queuectl:job:*")
+        keys = self.r.keys("queuectl:jobs:*")
         jobs = []
         for k in keys:
             job = self.r.hgetall(k)
@@ -143,7 +143,7 @@ class RedisStorage:
         return jobs
     
     def list_processing(self):
-        keys = self.r.keys("queuectl:job:*")
+        keys = self.r.keys("queuectl:jobs:*")
         jobs = []
         for k in keys:
             job = self.r.hgetall(k)
@@ -152,7 +152,7 @@ class RedisStorage:
         return jobs
     
     def list_completed(self):
-        keys = self.r.keys("queuectl:job:*")
+        keys = self.r.keys("queuectl:jobs:*")
         jobs = []
         for k in keys:
             job = self.r.hgetall(k)
@@ -162,7 +162,7 @@ class RedisStorage:
     
     def list_pending(self):
         pending_jobs = []
-        job_keys = self.r.keys("queuectl:job:*")
+        job_keys = self.r.keys("queuectl:jobs:*")
         for job_key in job_keys:
             job = self.r.hgetall(job_key)
             if job.get("status") == "pending":
@@ -170,4 +170,7 @@ class RedisStorage:
                 job["id"] = job_id  # add job ID for convenience
                 pending_jobs.append(job)
         return pending_jobs
+    
+    def is_retry_queue_empty(self):
+        return self.r.zcard("queuectl:retry") == 0
 
