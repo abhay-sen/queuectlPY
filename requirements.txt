@@ -1,0 +1,6 @@
+click
+importlib
+setuptools
+pytest
+redis
+uuid
