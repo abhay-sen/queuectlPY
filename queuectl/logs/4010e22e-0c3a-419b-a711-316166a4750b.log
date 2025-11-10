@@ -1,0 +1,12 @@
+[2025-11-10 11:48:31] 👷 Worker-1 picked job 4010e22e-0c3a-419b-a711-316166a4750b: {'command': 'sleep 12', 'timeout': 10}
+[2025-11-10 11:48:31] 🚀 Executing command: sleep 12
+[2025-11-10 11:48:41] 🏁 Job finished.
+[2025-11-10 11:48:45] 👷 Worker-1 picked job 4010e22e-0c3a-419b-a711-316166a4750b: {'command': 'sleep 12', 'timeout': 10}
+[2025-11-10 11:48:45] 🚀 Executing command: sleep 12
+[2025-11-10 11:48:55] 🏁 Job finished.
+[2025-11-10 11:49:01] 👷 Worker-1 picked job 4010e22e-0c3a-419b-a711-316166a4750b: {'command': 'sleep 12', 'timeout': 10}
+[2025-11-10 11:49:01] 🚀 Executing command: sleep 12
+[2025-11-10 11:49:11] 🏁 Job finished.
+[2025-11-10 11:49:21] 👷 Worker-1 picked job 4010e22e-0c3a-419b-a711-316166a4750b: {'command': 'sleep 12', 'timeout': 10}
+[2025-11-10 11:49:21] 🚀 Executing command: sleep 12
+[2025-11-10 11:49:31] 🏁 Job finished.

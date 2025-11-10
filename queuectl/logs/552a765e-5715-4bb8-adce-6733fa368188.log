@@ -1,0 +1,5 @@
+[2025-11-10 11:50:11] 👷 Worker-1 picked job 552a765e-5715-4bb8-adce-6733fa368188: {'command': 'echo  help', 'timeout': None}
+[2025-11-10 11:50:11] 🚀 Executing command: echo  help
+[2025-11-10 11:50:11] ✅ Job 552a765e-5715-4bb8-adce-6733fa368188 completed successfully:
+help
+[2025-11-10 11:50:11] 🏁 Job finished.

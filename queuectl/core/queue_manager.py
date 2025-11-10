@@ -2,8 +2,11 @@ import subprocess
 from queuectl.core.storage import RedisStorage
 import click
 import json
+import os
+import time
 storage = RedisStorage()
-
+LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 def should_stop():
     """Check if stop signal is active."""
     return storage.r.get("queuectl:stop_signal") == "true"
@@ -155,13 +158,26 @@ def get_active_workers():
         workers[key.split(":")[-1]] = r.hgetall(key)
     return workers
 
+
+
+
+
 def process_next_job(worker_name="Worker"):
     job_id, data = storage.get_next_job()
     if not job_id:
-        # Less noisy output
-        return
+        return  # Quietly return if no jobs
 
-    print(f"👷 {worker_name} picked job {job_id}: {data}")
+    log_file_path = os.path.join(LOG_DIR, f"{job_id}.log")
+
+    def log(message):
+        """Helper to write logs to both console and file."""
+        timestamp = time.strftime("[%Y-%m-%d %H:%M:%S]")
+        entry = f"{timestamp} {message}"
+        print(entry)
+        with open(log_file_path, "a") as f:
+            f.write(entry + "\n")
+
+    log(f"👷 {worker_name} picked job {job_id}: {data}")
 
     try:
         command = data.get("command")
@@ -173,17 +189,13 @@ def process_next_job(worker_name="Worker"):
         if not command:
             raise ValueError("No command found in job data")
 
-        # === FIX 1: Mark job as processing ===
-        storage.r.hset(f"queuectl:job:{job_id}", mapping={
-            "status": "processing",
-        })
-
-        # === FIX 2: Update worker state ===
+        # Update status to 'processing'
+        storage.r.hset(f"queuectl:job:{job_id}", mapping={"status": "processing"})
         storage.r.hset(
-            f"queuectl:worker:{worker_name}",
-            "current_job",
-            f"Job-{job_id} ({command})"
+            f"queuectl:worker:{worker_name}", "current_job", f"Job-{job_id} ({command})"
         )
+
+        log(f"🚀 Executing command: {command}")
 
         # Execute the shell command
         result = subprocess.run(
@@ -194,11 +206,11 @@ def process_next_job(worker_name="Worker"):
             timeout=timeout  # --- NEW: Pass timeout to subprocess ---
         )
 
-        # Job completed
+        # Handle result
         if result.returncode == 0:
             output = result.stdout.strip() or "(no output)"
             storage.mark_completed(job_id, output)
-            print(f"✅ Job {job_id} completed successfully:\n{output}")
+            log(f"✅ Job {job_id} completed successfully:\n{output}")
         else:
             error_msg = result.stderr.strip() or f"Command failed with code {result.returncode}"
             raise Exception(error_msg)
@@ -215,9 +227,7 @@ def process_next_job(worker_name="Worker"):
         print(f"❌ Job {job_id} failed: {e}")
 
     finally:
-        # === FIX 3: Reset worker to idle ===
-        storage.r.hset(
-            f"queuectl:worker:{worker_name}",
-            "current_job",
-            "idle"
-        )
+        storage.r.hset(f"queuectl:worker:{worker_name}", "current_job", "idle")
+        storage.r.hset(f"queuectl:job:{job_id}", "log_file", log_file_path)
+        log("🏁 Job finished.")
+
