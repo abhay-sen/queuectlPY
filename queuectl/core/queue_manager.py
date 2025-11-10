@@ -155,7 +155,6 @@ def get_active_workers():
         workers[key.split(":")[-1]] = r.hgetall(key)
     return workers
 
-
 def process_next_job(worker_name="Worker"):
     job_id, data = storage.get_next_job()
     if not job_id:
@@ -166,6 +165,11 @@ def process_next_job(worker_name="Worker"):
 
     try:
         command = data.get("command")
+        # --- NEW: Get the timeout value ---
+        # This will be `None` if not set, which `subprocess.run`
+        # correctly interprets as "no timeout".
+        timeout = data.get("timeout")
+
         if not command:
             raise ValueError("No command found in job data")
 
@@ -186,7 +190,8 @@ def process_next_job(worker_name="Worker"):
             command,
             shell=True,
             capture_output=True,
-            text=True
+            text=True,
+            timeout=timeout  # --- NEW: Pass timeout to subprocess ---
         )
 
         # Job completed
@@ -198,8 +203,16 @@ def process_next_job(worker_name="Worker"):
             error_msg = result.stderr.strip() or f"Command failed with code {result.returncode}"
             raise Exception(error_msg)
 
+    # --- NEW: Catch timeout errors specifically ---
+    except subprocess.TimeoutExpired:
+        error_msg = f"Job exceeded timeout of {timeout}s"
+        storage.mark_failed(job_id, error_msg)
+        print(f"⏰ Job {job_id} failed: {error_msg}")
+
     except Exception as e:
         storage.mark_failed(job_id, str(e))
+        # Added a print here for better visibility on failures
+        print(f"❌ Job {job_id} failed: {e}")
 
     finally:
         # === FIX 3: Reset worker to idle ===
